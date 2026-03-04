@@ -57,8 +57,6 @@ DEFAULTCFG
 }
 
 collect_dirs() {
-  local dirs=()
-
   while IFS= read -r line; do
     # skip comments and empty lines
     [[ -z "$line" || "$line" == \#* ]] && continue
@@ -78,18 +76,13 @@ collect_dirs() {
 
     [[ ! -d "$search_path" ]] && continue
 
-    # collect directories up to the specified depth
-    while IFS= read -r d; do
-      [[ -d "$d" ]] && dirs+=("$d")
-    done < <(find "$search_path" -mindepth 1 -maxdepth "$depth" -type d \
+    find "$search_path" -mindepth 1 -maxdepth "$depth" -type d \
       ! -name '.*' ! -path '*/.git/*' ! -path '*/node_modules/*' \
       ! -path '*/.next/*' ! -path '*/vendor/*' ! -path '*/__pycache__/*' \
       ! -path '*/.venv/*' ! -path '*/target/*' ! -path '*/.build/*' \
-      2>/dev/null)
+      2>/dev/null
 
-  done < "$CONFIG_FILE"
-
-  printf '%s\n' "${dirs[@]}" | sort -u
+  done < "$CONFIG_FILE" | sort -u
 }
 
 fuzzy_match() {
@@ -97,20 +90,25 @@ fuzzy_match() {
   local normalized_pattern
   normalized_pattern="$(normalize "$pattern")"
 
-  local matches=()
-
-  while IFS= read -r dir; do
-    local basename
-    basename="$(basename "$dir")"
-    local normalized_name
-    normalized_name="$(normalize "$basename")"
-
-    if [[ "$normalized_name" == *"$normalized_pattern"* ]]; then
-      matches+=("$dir")
-    fi
-  done < <(collect_dirs)
-
-  printf '%s\n' "${matches[@]}"
+  collect_dirs | awk -v pat="$normalized_pattern" '
+  function normalize(s,   out) {
+    out = tolower(s)
+    gsub(/[-_.]/, "", out)
+    gsub(/[àáâãä]/, "a", out)
+    gsub(/[èéêë]/, "e", out)
+    gsub(/[ìíîï]/, "i", out)
+    gsub(/[òóôõö]/, "o", out)
+    gsub(/[ùúûü]/, "u", out)
+    gsub(/[ýÿ]/, "y", out)
+    gsub(/ñ/, "n", out)
+    gsub(/ç/, "c", out)
+    return out
+  }
+  {
+    n = split($0, parts, "/")
+    name = normalize(parts[n])
+    if (index(name, pat) > 0) print $0
+  }'
 }
 
 # --- main ---
@@ -143,6 +141,17 @@ done < <(fuzzy_match "$pattern")
 
 count=${#matches[@]}
 
+# If multiple matches, check for exact basename match first
+if [[ $count -gt 1 ]]; then
+  for m in "${matches[@]}"; do
+    if [[ "$(basename "$m")" == "$pattern" ]]; then
+      matches=("$m")
+      count=1
+      break
+    fi
+  done
+fi
+
 if [[ $count -eq 0 ]]; then
   echo "ff: no match for '$pattern'" >&2
   exit 1
@@ -153,10 +162,11 @@ else
   if command -v fzf &>/dev/null; then
     printf '%s\n' "${matches[@]}" | fzf --height=~50% --layout=reverse \
       --prompt="ff> " --header="Multiple matches for '$pattern'" \
-      --preview='ls -la {}' --preview-window=right:40%
+      --preview='ls -la {}' --preview-window=right:40% \
+      < /dev/tty
   else
     echo "Multiple matches for '$pattern':" >&2
-    local i=1
+    i=1
     for m in "${matches[@]}"; do
       echo "  [$i] $m" >&2
       ((i++))
