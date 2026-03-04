@@ -161,9 +161,7 @@ else
   # multiple matches - use fzf if available, otherwise numbered list
   if command -v fzf &>/dev/null; then
     printf '%s\n' "${matches[@]}" | fzf --height=~50% --layout=reverse \
-      --prompt="ff> " --header="Multiple matches for '$pattern'" \
-      --preview='ls -la {}' --preview-window=right:40% \
-      < /dev/tty
+      --prompt="ff> " --header="Multiple matches for '$pattern'"
   else
     echo "Multiple matches for '$pattern':" >&2
     i=1
