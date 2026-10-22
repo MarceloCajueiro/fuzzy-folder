@@ -22,7 +22,8 @@ install.sh     — installer (patches paths, creates config, adds to .zshrc.loca
 1. Collects directories from configured search paths (via `find`)
 2. Normalizes query and dir names: lowercase, strip `-_.`, strip accents
 3. Substring match of normalized query against normalized dir names
-4. 1 match → output path. Multiple → fzf. 0 → error.
+4. Rank matches: exact name, then prefix, then substring (earlier position, shorter name, shorter path first)
+5. 1 match → output path. Multiple → fzf in ranked order (never auto-picks). 0 → error.
 
 ## Key Design Decisions
 
