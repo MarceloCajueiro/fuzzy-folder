@@ -107,8 +107,12 @@ fuzzy_match() {
   {
     n = split($0, parts, "/")
     name = normalize(parts[n])
-    if (index(name, pat) > 0) print $0
-  }'
+    pos = index(name, pat)
+    if (pos == 0) next
+    # rank: 0 exact, 1 prefix, 2 substring; then match position, name length, path length
+    tier = (name == pat) ? 0 : (pos == 1 ? 1 : 2)
+    printf "%d\t%d\t%d\t%d\t%s\n", tier, pos, length(name), length($0), $0
+  }' | sort -t $'\t' -k1,1n -k2,2n -k3,3n -k4,4n -k5 | cut -f5-
 }
 
 # --- main ---
@@ -140,17 +144,6 @@ while IFS= read -r m; do
 done < <(fuzzy_match "$pattern")
 
 count=${#matches[@]}
-
-# If multiple matches, check for exact basename match first
-if [[ $count -gt 1 ]]; then
-  for m in "${matches[@]}"; do
-    if [[ "$(basename "$m")" == "$pattern" ]]; then
-      matches=("$m")
-      count=1
-      break
-    fi
-  done
-fi
 
 if [[ $count -eq 0 ]]; then
   echo "ff: no match for '$pattern'" >&2
