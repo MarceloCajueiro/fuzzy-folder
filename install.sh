@@ -27,12 +27,23 @@ INIT_FILE="$SCRIPT_DIR/ff-init.zsh"
 sed -i '' "s|__FF_SCRIPT_PATH__|$SCRIPT_DIR/ff.sh|g" "$INIT_FILE" 2>/dev/null || \
   sed -i "s|__FF_SCRIPT_PATH__|$SCRIPT_DIR/ff.sh|g" "$INIT_FILE"
 
-# 3. Add source line to .zshrc.local if not already there
+# 3. Add source line to .zshrc.local if not already sourced
 ZSHRC="$HOME/.zshrc.local"
 SOURCE_LINE="source \"$INIT_FILE\""
 
-if [[ -f "$ZSHRC" ]] && grep -qF "$INIT_FILE" "$ZSHRC"; then
-  echo "  Already sourced in $ZSHRC"
+# the init file may be referenced by absolute path or relative to $HOME
+INIT_REL="${INIT_FILE#"$HOME"/}"
+already_sourced_in=""
+for rc in "$HOME/.zshrc" "$ZSHRC"; do
+  if [[ -f "$rc" ]] && grep -qF -e "$INIT_FILE" -e "\$HOME/$INIT_REL" \
+      -e "\${HOME}/$INIT_REL" -e "~/$INIT_REL" "$rc"; then
+    already_sourced_in="$rc"
+    break
+  fi
+done
+
+if [[ -n "$already_sourced_in" ]]; then
+  echo "  Already sourced in $already_sourced_in"
 else
   echo "" >> "$ZSHRC"
   echo "# ff - fuzzy folder finder" >> "$ZSHRC"
